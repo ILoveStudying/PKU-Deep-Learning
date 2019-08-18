@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # vim: ts=4 sw=4 sts=4 expandtab
-
+#
 import numpy as np
 import tensorflow as tf
 from common import config
