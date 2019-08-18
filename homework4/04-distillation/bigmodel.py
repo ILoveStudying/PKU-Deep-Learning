@@ -4,7 +4,7 @@ import tensorflow as tf
 from common import config
 import os
 import tensorflow.contrib as tf_contrib
-
+#
 
 class BigModel:
     def __init__(self, args):
