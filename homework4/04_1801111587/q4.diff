@@ -1,0 +1,50 @@
+diff -u -- 04-distillation/common.py q4/common.py
+--- 04-distillation/common.py	2019-05-10 14:59:56.930669300 +0800
++++ q4/common.py	2019-05-14 12:55:53.293780400 +0800
+@@ -8,8 +8,8 @@
+     log_dir = '../train_log'
+ 
+     '''where to write model snapshots to'''
+-    log_model_dir = os.path.join(log_dir, 'models')
+-    checkpoint_path = '../train_log/models'
++    log_model_dir = os.path.join(log_dir, 'models/q4_T100')
++    checkpoint_path = '../../homework1/train_log/models/h4'
+     exp_name = os.path.basename(log_dir)
+ 
+     minibatch_size = 256
+diff -u -- 04-distillation/distillation.py q4/distillation.py
+--- 04-distillation/distillation.py	2019-05-07 10:19:04.000000000 +0800
++++ q4/distillation.py	2019-05-14 12:55:53.681273000 +0800
+@@ -39,7 +39,7 @@
+                             tf.cast(tf.argmax(label_onehot, 1), dtype=tf.int32))
+         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+         loss_reg = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+-        loss = tf.losses.softmax_cross_entropy(target_label_onehot, logits/args.temperature)  + loss_reg
++        loss = args.temperature ** 2 * tf.losses.softmax_cross_entropy(label_onehot, logits / args.temperature)+ tf.losses.softmax_cross_entropy(label_onehot, logits) + loss_reg
+ 
+         global_steps = tf.Variable(0, trainable=False)
+         boundaries = [train_set.minibatchs_per_epoch*15, train_set.minibatchs_per_epoch*40]
+@@ -58,9 +58,9 @@
+         tf.summary.scalar('accuracy', accuracy)
+         tf.summary.scalar('learning_rate', lr)
+         merged = tf.summary.merge_all()
+-        train_writer = tf.summary.FileWriter(os.path.join(config.log_dir, 'tf_log', 'train'),
++        train_writer = tf.summary.FileWriter(os.path.join(config.log_dir, 'tf_log', 'train/q4_T100'),
+                                          tf.get_default_graph())
+-        test_writer = tf.summary.FileWriter(os.path.join(config.log_dir, 'tf_log', 'test'),
++        test_writer = tf.summary.FileWriter(os.path.join(config.log_dir, 'tf_log', 'test/q4_T100'),
+                                         tf.get_default_graph())
+ 
+         saver = tf.train.Saver(var_list=trainable_varlist)
+diff -u -- 04-distillation/train.py q4/train.py
+--- 04-distillation/train.py	2019-05-07 10:19:04.000000000 +0800
++++ q4/train.py	2019-05-14 12:55:53.607480500 +0800
+@@ -15,7 +15,7 @@
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument('-c', '--continue', dest='continue_path', required=False)
+-    parser.add_argument('-t', '--temperature', type=float, default=15.0)
++    parser.add_argument('-t', '--temperature', type=float, default=100.0)
+     args = parser.parse_args()
+     teacher_network = BigModel(args)
+     teacher_network.start_session()

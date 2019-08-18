@@ -1,0 +1,158 @@
+diff -- 03-adversarial-examples/attack.py homework3/q3.1.diff/attack.py
+4c4
+< 
+---
+> import cv2
+21,24c21,25
+<         x_clip = tf.clip_by_value(x_noise, 0, 255) 
+<         x_round = x_clip + tf.stop_gradient(x_clip // 1 - x_clip) ##skip computing gradient wrt to rounded results(x_round) and only calculate the gradient wrt to x_clip 
+<         x_norm = (x_round - mean)/(std + 1e-7)          ## normalize the image input for the classfier
+<         logits = self.model.build(x_norm)               
+---
+>         x_clip = tf.clip_by_value(x_noise, 0, 255)
+>         x_round = x_clip + tf.stop_gradient(x_clip // 1 - x_clip) ##对抗性的 training,其中不应通过反例生成过程发生 backprop. skip computing gradient wrt to rounded results(x_round) and only calculate the gradient wrt to x_clip
+>         x_norm = (x_round - mean)/(std + 1e-7)          ## 做一些对特征没有影响的变换，这样归一化之后仍然不会变，例如一面墙灯强和灯弱时的像素 normalize the image input for the classfier
+> 
+>         logits = self.model.build(x_norm)
+32c33
+<         loss = tf.losses.softmax_cross_entropy(target_one_hot, logits) * (-1)
+---
+>         loss = tf.losses.softmax_cross_entropy(target_one_hot, logits) * (-1) #这里是使差值越大，当扰动多大时，基本已经可以完全误分类了？
+35c36
+<         return  acc, loss, x_round
+---
+>         return  acc, loss, x_clip,x, preds
+38c39
+<     def evaluate(self, x, gt, **kwargs): 
+---
+>     def evaluate(self, x, gt, **kwargs):
+46,47c47
+< 
+<         return acc
+---
+>         return acc
+\ No newline at end of file
+diff -- 03-adversarial-examples/common.py homework3/q3.1.diff/common.py
+7c7
+<     log_dir = './train_log'
+---
+>     log_dir = '../../train_log'
+diff -- 03-adversarial-examples/dataset.py homework3/q3.1.diff/dataset.py
+9,10d8
+< class Dataset():
+<     dataset_path = '../../cifar10-dataset/'
+11a10,11
+> class Dataset():
+>     dataset_path = '../../dataset/cifar-10-batches-py/'
+21a22
+> 
+26c27
+<                 samples = pickle.load(f, encoding = 'bytes')
+---
+>                 samples = pickle.load(f, encoding='bytes')
+45c46
+<             img = np.concatenate((img_r, img_g, img_b), axis = 2)
+---
+>             img = np.concatenate((img_r, img_g, img_b), axis=2)
+66c67
+<         imggrid = imggrid.transpose((0, 2, 1, 3, 4)).reshape((5*img.shape[0], 5*img.shape[1], 3))
+---
+>         imggrid = imggrid.transpose((0, 2, 1, 3, 4)).reshape((5 * img.shape[0], 5 * img.shape[1], 3))
+73d73
+< 
+diff -- 03-adversarial-examples/train.py homework3/q3.1.diff/train.py
+19c19
+<     ds = tf.data.Dataset().from_generator(ds_gnr, output_types=(tf.float32, tf.int32),)
+---
+>     ds = tf.data.Dataset().from_generator(ds_gnr, output_types=(tf.float32, tf.int32), )
+25a26,53
+> 
+> def affine_transformation(img):
+>     img=img.reshape(config.image_shape + (config.nr_channel,))
+>     rows, cols, dims = img.shape
+>     choice = np.random.choice(['scale', 'rotate', 'shift', 'affine'])
+>     if choice == 'scale':
+>         # 放缩
+>         scale = np.random.choice([0.8, 0.9, 1.0, 1.1, 1.2])
+>         img = cv2.resize(img, dsize=(int(rows * scale), int(cols * scale)), interpolation=cv2.INTER_LINEAR)
+>     elif choice == 'rotate':
+>         # 旋转
+>         RotateMatrix = cv2.getRotationMatrix2D(center=(cols / 2, rows / 2), angle=90, scale=1.2)
+>         img = cv2.warpAffine(img, RotateMatrix, (rows * 2, cols * 2))
+>     elif choice == 'shift':
+>         # 平移
+>         TranslationMatrix = np.float32([[1, 0, 5], [0, 1, 2]])
+>         img = cv2.warpAffine(img, TranslationMatrix, (rows, cols))
+>     elif choice == 'affine':
+>         # 仿射变换
+>         pts1 = np.float32([[0, 0], [cols - 1, 0], [0, rows - 1]])
+>         pts2 = np.float32([[cols * 0.2, rows * 0.1], [cols * 0.9, rows * 0.2], [cols * 0.1, rows * 0.9]])
+>         M_affine = cv2.getAffineTransform(pts1, pts2)
+>         img = cv2.warpAffine(img, M_affine, (cols, rows))
+>     img = cv2.resize(img, config.image_shape)
+>     img = img.reshape((1,) +config.image_shape + (config.nr_channel,))
+>     return img
+> 
+> 
+35,40c63,69
+< 
+<     data = tf.placeholder(tf.float32, shape = (None,) + config.image_shape + (config.nr_channel, ), name = 'data')
+<     label = tf.placeholder(tf.int32, shape = (None, ), name = 'label') # placeholder for targetted label
+<     gt = tf.placeholder(tf.int32, shape = (None, ), name='gt')
+< 
+<     pre_noise = tf.Variable(tf.zeros((config.minibatch_size, config.image_shape[0], config.image_shape[1], config.nr_channel), dtype=tf.float32 ))
+---
+>     data = tf.placeholder(tf.float32, shape=(None,) + config.image_shape + (config.nr_channel,), name='data')
+>     label = tf.placeholder(tf.int32, shape=(None,), name='label')  # placeholder for targetted label
+>     gt = tf.placeholder(tf.int32, shape=(None,), name='gt')
+> 
+>     pre_noise = tf.Variable(
+>         tf.zeros((config.minibatch_size, config.image_shape[0], config.image_shape[1], config.nr_channel),
+>                  dtype=tf.float32))
+43,44c72,73
+<     acc, loss, adv = attack.generate_graph(pre_noise, data, gt, label)
+<     acc_gt = attack.evaluate(data, gt) 
+---
+>     acc, loss, adv, x, logits = attack.generate_graph(pre_noise, data, gt, label)
+>     acc_gt = attack.evaluate(data, gt)
+48c77
+<         'label':label, 
+---
+>         'label': label,
+64c93
+<     tf.set_random_seed(12345) # ensure consistent results
+---
+>     tf.set_random_seed(12345)  # ensure consistent results
+74c103
+<             sess.run(tf.global_variables_initializer()) # init all variables
+---
+>             sess.run(tf.global_variables_initializer())  # init all variables
+84,85c113,114
+<                 _, accuracy, loss_batch, adv_examples, summary = sess.run([train, acc, loss, adv, merged],
+<                                                                        feed_dict=feed_dict)
+---
+>                 _, accuracy, loss_batch, adv_examples, ori_image, a, summary = sess.run([train, acc, loss, adv,x, logits, merged],
+>                                                                                         feed_dict=feed_dict)
+90c119
+<                         "e:{}/{}, {}".format(idx,train_set.minibatches, epoch),
+---
+>                         "e:{}/{}, {}".format(idx, train_set.minibatches, epoch),
+92a122,123
+>                         'logits: {:4f}'.format(np.max(a[0])),
+>                         'index: {}'.format(np.argmax(a[0]))
+97,99c128,129
+<             accuracy_gt = acc_gt.eval(feed_dict ={placeholders['data']:adv_examples, placeholders['gt'] :labels})
+<             succ = (idx * succ + 1- accuracy_gt)/(idx + 1)      # compute success rate of generating adversarial examples that can be misclassified
+<             noise_l2 = (idx * (noise_l2) + ((adv_examples - images))**2)/(idx + 1) # compute l2 difference between adversarial examples and origina images
+---
+>             cv2.imwrite('../../ori_image/' + '{}.png'.format(idx), ori_image.astype('uint8').reshape(32, 32, 3))
+>             cv2.imwrite('../../adv_image/' + '{}.png'.format(idx), adv_examples.astype('uint8').reshape(32, 32, 3))
+100a131,136
+>             adv_examples=affine_transformation(adv_examples)
+>             accuracy_gt = acc_gt.eval(feed_dict={placeholders['data']: adv_examples, placeholders['gt']: labels})
+>             succ = (idx * succ + 1 - accuracy_gt) / (
+>                         idx + 1)  # compute success rate of generating adversarial examples that can be misclassified
+>             noise_l2 = (idx * (noise_l2) + ((adv_examples - images)) ** 2) / (
+>                         idx + 1)  # compute l2 difference between adversarial examples and origina images
+105d140
+< 

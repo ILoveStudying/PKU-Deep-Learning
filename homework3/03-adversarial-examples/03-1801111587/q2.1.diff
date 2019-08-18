@@ -1,0 +1,134 @@
+diff -- 03-adversarial-examples/attack.py homework3/q2.1.diff/attack.py
+10a11
+> 
+16c17
+<     
+---
+> 
+18,24c19,28
+<     def generate_graph(self, pre_noise, x, gt, target = None, **kwargs):
+<         noise = 10 * tf.tanh(pre_noise) 
+<         x_noise = x + noise                 ## add perturbation and get adversarial examples
+<         x_clip = tf.clip_by_value(x_noise, 0, 255) 
+<         x_round = x_clip + tf.stop_gradient(x_clip // 1 - x_clip) ##skip computing gradient wrt to rounded results(x_round) and only calculate the gradient wrt to x_clip 
+<         x_norm = (x_round - mean)/(std + 1e-7)          ## normalize the image input for the classfier
+<         logits = self.model.build(x_norm)               
+---
+> 
+>     def generate_graph(self, pre_noise, x, gt, target=None, **kwargs):
+>         noise = 10 * tf.tanh(pre_noise)
+>         x_noise = x + noise  ## add perturbation and get adversarial examples
+>         x_clip = tf.clip_by_value(x_noise, 0, 255)
+>         x_round = x_clip + tf.stop_gradient(
+>             x_clip // 1 - x_clip)  ##对抗性的 training,其中不应通过反例生成过程发生 backprop. skip computing gradient wrt to rounded results(x_round) and only calculate the gradient wrt to x_clip
+>         x_norm = (x_round - mean) / (
+>                     std + 1e-7)  ## 做一些对特征没有影响的变换，这样归一化之后仍然不会变，例如一面墙灯强和灯弱时的像素 normalize the image input for the classfier
+>         logits = self.model.build(x_norm)
+32c36,37
+<         loss = tf.losses.softmax_cross_entropy(target_one_hot, logits) * (-1)
+---
+>         rel = self.add_variation(x_norm)
+>         loss = tf.losses.softmax_cross_entropy(target_one_hot, logits) * (-1) + rel  # 这里是使差值越大，当扰动多大时，基本已经可以完全误分类了？
+34,35c39,40
+<                              tf.cast(tf.argmax(gt_one_hot, 1), dtype = tf.int32)), tf.float32))
+<         return  acc, loss, x_round
+---
+>                                               tf.cast(tf.argmax(gt_one_hot, 1), dtype=tf.int32)), tf.float32))
+>         return acc, loss, x_round, x, preds
+38,39c43,45
+<     def evaluate(self, x, gt, **kwargs): 
+<         x = (x - mean)/(std + 1e-7)
+---
+> 
+>     def evaluate(self, x, gt, **kwargs):
+>         x = (x - mean) / (std + 1e-7)
+44,45c50
+<                              tf.cast(tf.argmax(gt_one_hot, 1), dtype = tf.int32)), tf.float32))
+< 
+---
+>                                               tf.cast(tf.argmax(gt_one_hot, 1), dtype=tf.int32)), tf.float32))
+47a53,60
+> 
+>     def add_variation(self, noise):
+>         rel = tf.zeros(noise.shape)
+>         for k in range(1, noise.shape[1]):
+>             rel += tf.square(noise[0, k, :, :] - noise[0, k - 1, :, :]) + tf.square(
+>                 noise[0, :, k, :] - noise[0, :, k - 1, :])
+> 
+>         return tf.reduce_mean(rel)
+diff -- 03-adversarial-examples/common.py homework3/q2.1.diff/common.py
+7c7
+<     log_dir = './train_log'
+---
+>     log_dir = '../../train_log'
+diff -- 03-adversarial-examples/dataset.py homework3/q2.1.diff/dataset.py
+10c10
+<     dataset_path = '../../cifar10-dataset/'
+---
+>     dataset_path = '../../dataset/cifar-10-batches-py/'
+diff -- 03-adversarial-examples/train.py homework3/q2.1.diff/train.py
+19c19
+<     ds = tf.data.Dataset().from_generator(ds_gnr, output_types=(tf.float32, tf.int32),)
+---
+>     ds = tf.data.Dataset().from_generator(ds_gnr, output_types=(tf.float32, tf.int32), )
+25a26
+> 
+35,40c36,42
+< 
+<     data = tf.placeholder(tf.float32, shape = (None,) + config.image_shape + (config.nr_channel, ), name = 'data')
+<     label = tf.placeholder(tf.int32, shape = (None, ), name = 'label') # placeholder for targetted label
+<     gt = tf.placeholder(tf.int32, shape = (None, ), name='gt')
+< 
+<     pre_noise = tf.Variable(tf.zeros((config.minibatch_size, config.image_shape[0], config.image_shape[1], config.nr_channel), dtype=tf.float32 ))
+---
+>     data = tf.placeholder(tf.float32, shape=(1,) + config.image_shape + (config.nr_channel,), name='data')
+>     label = tf.placeholder(tf.int32, shape=(None,), name='label')  # placeholder for targetted label
+>     gt = tf.placeholder(tf.int32, shape=(None,), name='gt')
+> 
+>     pre_noise = tf.Variable(
+>         tf.zeros((config.minibatch_size, config.image_shape[0], config.image_shape[1], config.nr_channel),
+>                  dtype=tf.float32))
+43,44c45,46
+<     acc, loss, adv = attack.generate_graph(pre_noise, data, gt, label)
+<     acc_gt = attack.evaluate(data, gt) 
+---
+>     acc, loss, adv, x, logits = attack.generate_graph(pre_noise, data, gt, label)
+>     acc_gt = attack.evaluate(data, gt)
+48c50
+<         'label':label, 
+---
+>         'label': label,
+64c66
+<     tf.set_random_seed(12345) # ensure consistent results
+---
+>     tf.set_random_seed(12345)  # ensure consistent results
+74c76
+<             sess.run(tf.global_variables_initializer()) # init all variables
+---
+>             sess.run(tf.global_variables_initializer())  # init all variables
+84,85c86,87
+<                 _, accuracy, loss_batch, adv_examples, summary = sess.run([train, acc, loss, adv, merged],
+<                                                                        feed_dict=feed_dict)
+---
+>                 _, accuracy, loss_batch, adv_examples,ori_image, a, summary = sess.run([train, acc, loss, adv, x,logits, merged],
+>                                                                              feed_dict=feed_dict)
+90c92
+<                         "e:{}/{}, {}".format(idx,train_set.minibatches, epoch),
+---
+>                         "e:{}/{}, {}".format(idx, train_set.minibatches, epoch),
+92a95,96
+>                         'logits: {:4f}'.format(np.max(a[0])),
+>                         'index: {}'.format(np.argmax(a[0]))
+97,99c101,102
+<             accuracy_gt = acc_gt.eval(feed_dict ={placeholders['data']:adv_examples, placeholders['gt'] :labels})
+<             succ = (idx * succ + 1- accuracy_gt)/(idx + 1)      # compute success rate of generating adversarial examples that can be misclassified
+<             noise_l2 = (idx * (noise_l2) + ((adv_examples - images))**2)/(idx + 1) # compute l2 difference between adversarial examples and origina images
+---
+>             cv2.imwrite('../../ori_image/' + '{}.png'.format(idx), ori_image.astype('uint8').reshape(32, 32, 3))
+>             cv2.imwrite('../../adv_image/' + '{}.png'.format(idx), adv_examples.astype('uint8').reshape(32, 32, 3))
+100a104,106
+>             accuracy_gt = acc_gt.eval(feed_dict={placeholders['data']: adv_examples, placeholders['gt']: labels})
+>             succ = (idx * succ + 1 - accuracy_gt) / (idx + 1)  # compute success rate of generating adversarial examples that can be misclassified
+>             noise_l2 = (idx * (noise_l2) + ((adv_examples - images)) ** 2) / (idx + 1)  # compute l2 difference between adversarial examples and origina images
+105d110
+< 

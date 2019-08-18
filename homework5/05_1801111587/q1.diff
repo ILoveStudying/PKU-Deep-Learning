@@ -1,0 +1,93 @@
+diff -u -- 05-texture-network/common.py q1/common.py
+--- 05-texture-network/common.py	2019-05-23 20:21:28.938664600 +0800
++++ q1/common.py	2019-05-24 00:30:25.624122700 +0800
+@@ -12,18 +12,18 @@
+ 
+ class Config:
+     '''where to write all the logging information during training(includes saved models)'''
+-    log_dir = './train_log'
++    log_dir = '../train_log'
+ 
+     '''where to write model snapshots to'''
+     log_model_dir = os.path.join(log_dir, 'models')
+ 
+     exp_name = os.path.basename(log_dir)
+     nr_channel = 3
+-    nr_epoch = 5000
++    nr_epoch = 4900
+     '''save the image every 10 epoch'''
+-    save_interval = 10
++    save_interval = 70
+     '''show the training loss every 10 epoch'''
+-    show_interval = 10
++    show_interval = 100
+ 
+ 
+ 
+diff -u -- 05-texture-network/custom_vgg16_bn.py q1/custom_vgg16_bn.py
+--- 05-texture-network/custom_vgg16_bn.py	2019-05-23 15:28:23.910206000 +0800
++++ q1/custom_vgg16_bn.py	2019-05-23 19:53:27.935248000 +0800
+@@ -8,7 +8,7 @@
+ vgg_std = [0.229, 0.224, 0.225]
+ data = None
+ dir_path = os.path.dirname(os.path.realpath(__file__))
+-weights_path = os.path.abspath(dir_path + "../models/vgg16_onnx.npy")
++weights_path = "../models/vgg16_onnx.npy"
+ 
+ 
+ class Vgg16:
+diff -u -- 05-texture-network/train.py q1/train.py
+--- 05-texture-network/train.py	2019-05-23 20:26:50.080452200 +0800
++++ q1/train.py	2019-05-24 11:49:05.922726300 +0800
+@@ -11,12 +11,32 @@
+ 
+ '''use 13 convolution layers to generate gram matrix'''
+ 
+-GRAM_LAYERS= ['conv1_1', 'conv1_2', 'conv2_1', 'conv2_2', 'conv3_1', 'conv3_2', 'conv3_3', 'conv4_1', 'conv4_2', 'conv4_3', 'conv5_1', 'conv5_2', 'conv5_3']
++GRAM_LAYERS= ['conv1_1', 'conv1_2' ,'conv2_1', 'conv2_2' , 'conv3_1', 'conv3_2', 'conv3_3' , 'conv4_1', 'conv4_2', 'conv4_3' , 'conv5_1', 'conv5_2', 'conv5_3']
+ image_shape = (1, 224, 224, 3)
+ 
+ '''you need to complete this method'''
+ def get_l2_gram_loss_for_layer(noise, source, layer):
++    noise_layer = getattr(noise, layer)
++    source_layer = getattr(source, layer)
+ 
++    n_filter=noise_layer.shape[-1].value
++    h_filter=noise_layer.shape[1].value
++    w_filter=noise_layer.shape[2].value
++
++    re_noise = tf.reshape(noise_layer, shape=(-1, n_filter))
++    tran_noise = tf.transpose(tf.reshape(noise_layer, shape=(-1, n_filter)))
++    Matrix_noise = tf.matmul(tran_noise, re_noise)
++
++    re_source = tf.reshape(source_layer, shape=(-1, n_filter))
++    tran_source_ = tf.transpose(tf.reshape(source_layer, shape=(-1, n_filter)))
++    Matrix_source = tf.matmul(tran_source_, re_source)
++
++    diff_G = tf.reduce_sum(tf.square(Matrix_noise - Matrix_source))
++
++    weight_filter = 1.0
++    # loss = weight_filter * diff_G / tf.cast(4 * (n_filter ** 2) * (h_filter * w_filter) ** 2, dtype=tf.float32)
++    loss = weight_filter * diff_G /  tf.cast(4 * (h_filter * w_filter) ** 2, dtype=tf.float32)
++    return loss
+ 
+ def get_gram_loss(noise, source):
+     with tf.name_scope('get_gram_loss'):
+@@ -36,7 +56,7 @@
+     noise = tf.Variable(tf.nn.sigmoid(pre_noise))
+ 
+     '''load texture image, notice that the pixel value has to be normalized to [0,1]'''
+-    image = cv2.imread('../../images/red-peppers256.jpg')
++    image = cv2.imread('../images/red-peppers256.jpg')
+     image = cv2.resize(image, image_shape[1:3])
+     image = image.reshape(image_shape)
+     image = (image/255).astype('float32')
+@@ -93,7 +113,7 @@
+ 
+             '''save the trained image every 10 epoch'''
+             if global_cnt % config.save_interval == 0 and global_cnt >0 :
+-                out_dir = os.path.dirname(os.path.realpath(__file__)) + '/./output'
++                out_dir = os.path.dirname(os.path.realpath(__file__)) + '/output'
+ 
+                 if not os.path.isdir(out_dir):
+                     os.makedirs(out_dir)

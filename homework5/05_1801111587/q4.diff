@@ -1,0 +1,56 @@
+diff -u -- q4/train.py q1/train.py
+--- q4/train.py	2019-05-25 20:37:35.349334900 +0800
++++ q1/train.py	2019-05-24 11:49:05.922726300 +0800
+@@ -19,30 +19,24 @@
+     noise_layer = getattr(noise, layer)
+     source_layer = getattr(source, layer)
+ 
+-    n_filter = noise_layer.shape[-1].value
+-    h_filter = noise_layer.shape[1].value
+-    w_filter = noise_layer.shape[2].value
++    n_filter=noise_layer.shape[-1].value
++    h_filter=noise_layer.shape[1].value
++    w_filter=noise_layer.shape[2].value
+ 
++    re_noise = tf.reshape(noise_layer, shape=(-1, n_filter))
+     tran_noise = tf.transpose(tf.reshape(noise_layer, shape=(-1, n_filter)))
+-    tran_source_ = tf.transpose(tf.reshape(source_layer, shape=(-1, n_filter)))
+-    feature_noise=tf.nn.top_k(tran_noise,h_filter*w_filter)[0]
+-    feature_source=tf.nn.top_k(tran_source_,h_filter*w_filter)[0]
+-
+-    feature_sum = tf.reduce_sum(tf.square(feature_noise - feature_source))
+-    weight = 1.0
+-    loss = weight * feature_sum
+-    return loss
+-    # for i in range(n_filter):
+-    #     mid_noise=tf.reshape(noise_layer[:,:,:,i],shape=(1,-1))
+-    #     mid_source=tf.reshape(source_layer[:,:,:,i],shape=(1,-1))
+-    #
+-    #     feature_noise=tf.nn.top_k(mid_noise,h_filter*w_filter)[0]
+-    #     feature_source=tf.nn.top_k(mid_source,h_filter*w_filter)[0]
+-    #     feature_sum = tf.reduce_sum(tf.square(feature_noise - feature_source))
+-
++    Matrix_noise = tf.matmul(tran_noise, re_noise)
+ 
++    re_source = tf.reshape(source_layer, shape=(-1, n_filter))
++    tran_source_ = tf.transpose(tf.reshape(source_layer, shape=(-1, n_filter)))
++    Matrix_source = tf.matmul(tran_source_, re_source)
+ 
++    diff_G = tf.reduce_sum(tf.square(Matrix_noise - Matrix_source))
+ 
++    weight_filter = 1.0
++    # loss = weight_filter * diff_G / tf.cast(4 * (n_filter ** 2) * (h_filter * w_filter) ** 2, dtype=tf.float32)
++    loss = weight_filter * diff_G /  tf.cast(4 * (h_filter * w_filter) ** 2, dtype=tf.float32)
++    return loss
+ 
+ def get_gram_loss(noise, source):
+     with tf.name_scope('get_gram_loss'):
+@@ -62,7 +56,7 @@
+     noise = tf.Variable(tf.nn.sigmoid(pre_noise))
+ 
+     '''load texture image, notice that the pixel value has to be normalized to [0,1]'''
+-    image = cv2.imread('../images/stone_1.jpg')
++    image = cv2.imread('../images/red-peppers256.jpg')
+     image = cv2.resize(image, image_shape[1:3])
+     image = image.reshape(image_shape)
+     image = (image/255).astype('float32')

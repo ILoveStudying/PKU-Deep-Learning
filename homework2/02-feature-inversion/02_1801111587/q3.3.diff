@@ -1,0 +1,228 @@
+diff -u baseline/common.py homework2/q3.c.diff/common.py
+--- baseline/common.py	2019-03-27 06:22:34.000000000 +0800
++++ homework2/q3.c.diff/common.py	2019-03-20 10:06:06.000000000 +0800
+@@ -21,11 +21,9 @@
+     nr_channel = 3
+     nr_epoch = 2000
+     '''save the image every 10 epoch'''
+-    save_interval = 10
++    save_interval = 50
+     '''show the training loss every 10 epoch'''
+-    show_interval = 10
+-    snapshot_interval = 2
+-
+-
++    show_interval = 100
++    snapshot_interval = 100
+ 
+ config = Config()
+diff -u baseline/custom_resnet18.py homework2/q3.c.diff/custom_resnet18.py
+--- baseline/custom_resnet18.py	2019-03-27 06:22:34.000000000 +0800
++++ homework2/q3.c.diff/custom_resnet18.py	2019-03-18 13:48:56.000000000 +0800
+@@ -6,7 +6,7 @@
+ vgg_std = [0.229, 0.224, 0.225]
+ data = None
+ dir_path = os.path.dirname(os.path.realpath(__file__))
+-weights_path = os.path.abspath(dir_path + "/../../models/resnet18.npy")
++weights_path = os.path.abspath(dir_path + "/././models/resnet18.npy")
+ 
+ 
+ class Resnet18:
+diff -u baseline/custom_vgg16_bn.py homework2/q3.c.diff/custom_vgg16_bn.py
+--- baseline/custom_vgg16_bn.py	2019-03-27 06:22:34.000000000 +0800
++++ homework2/q3.c.diff/custom_vgg16_bn.py	2019-03-18 13:26:56.000000000 +0800
+@@ -6,7 +6,7 @@
+ vgg_std = [0.229, 0.224, 0.225]
+ data = None
+ dir_path = os.path.dirname(os.path.realpath(__file__))
+-weights_path = os.path.abspath(dir_path + "/../models/vgg16_onnx.npy")
++weights_path = os.path.abspath(dir_path + "/./models/vgg16_onnx.npy")
+ 
+ 
+ class Model():
+diff -u baseline/train.py homework2/q3.c.diff/train.py
+--- baseline/train.py	2019-03-27 06:22:34.000000000 +0800
++++ homework2/q3.c.diff/train.py	2019-03-22 21:33:12.000000000 +0800
+@@ -14,45 +14,80 @@
+ 
+ from common import config
+ import custom_vgg16_bn as vgg16
++import custom_resnet18 as res18
+ import cv2
+ import numpy as np
+ 
+ '''use conv3_1 to generate representation'''
+-FEATURE_LAYERS = ['conv3_1']
++FEATURE_LAYERS = ['conv3_1','fc6']
+ image_shape = (1, 224, 224, 3)
+ 
+-def get_feature_loss(noise,source):
++
++def get_feature_loss(noise, source):
+     with tf.name_scope('get_feature_loss'):
+-        feature_loss = [get_l2_loss_for_layer(noise, source, layer)for layer in FEATURE_LAYERS]
++        feature_loss = [get_l2_loss_for_layer(noise, source, layer) for layer in FEATURE_LAYERS]
+     return tf.reduce_mean(tf.convert_to_tensor(feature_loss))
+ 
++
++def get_regulazation(noise):
++    with tf.name_scope('get_regulazation'):
++        regulazation = [get_regulazation_for_layer(noise, layer) for layer in FEATURE_LAYERS]
++    return tf.reduce_mean(tf.convert_to_tensor(regulazation))
++
++
+ def get_l2_loss_for_layer(noise, source, layer):
+-    noise_layer = getattr(noise,layer)
++    noise_layer = getattr(noise, layer)
+     source_layer = getattr(source, layer)
+-    l2_loss = tf.reduce_mean((source_layer-noise_layer) **2)
+-    return  l2_loss
++    l2_loss = tf.reduce_mean((source_layer - noise_layer) ** 2)
++    return l2_loss
++
++
++def get_regulazation_for_layer(noise, layer):
++    noise_layer = getattr(noise, layer)
++    if 'fc' in layer:
++        rel = add_fc_variation(noise_layer)
++    else:
++        rel = add_variation(noise_layer)
++    return rel
++
+ 
+ def output_img(session, x, save=False, out_path=None):
+     shape = image_shape
+-    img = np.clip(session.run(x),0, 1) * 255
++    img = np.clip(session.run(x), 0, 1) * 255
+     img = img.astype('uint8')
+     if save:
+         cv2.imwrite(out_path, (np.reshape(img, shape[1:])))
+ 
++def add_fc_variation(noise):
++    rel = tf.zeros(noise.shape)
++    for k in range(1, noise.shape[1]):
++        rel += tf.square(noise[0, k] - noise[0, k - 1])
++
++    return tf.reduce_mean(rel)
++
++def add_variation(noise):
++    rel = tf.zeros(noise.shape)
++    for k in range(1, noise.shape[1]):
++        rel += tf.square(noise[0, k, :, :] - noise[0, k - 1, :, :]) + tf.square(
++            noise[0, :, k, :] - noise[0, :, k - 1, :])
++
++    return tf.reduce_mean(rel)
++
++
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument('-c', '--continue', dest='continue_path', required=False)
+     args = parser.parse_args()
+ 
+     '''training a image from noise that resemble the target'''
+-    pre_noise = tf.Variable(tf.random_uniform(image_shape, -3, 3 ))
++    pre_noise = tf.Variable(tf.random_uniform(image_shape, -3, 3))
+     noise = tf.Variable(tf.nn.sigmoid(pre_noise))
+ 
+     '''load target image, notice that the pixel value has to be normalized to [0,1]'''
+-    image = cv2.imread('../images/face.jpg')
++    image = cv2.imread('./images/face.jpg')
+     image = cv2.resize(image, image_shape[1:3])
+     image = image.reshape(image_shape)
+-    image = (image/255).astype('float32')
++    image = (image / 255).astype('float32')
+ 
+     '''get representation of the target image, which the noise image will approximate'''
+     with tf.name_scope('vgg_src'):
+@@ -66,12 +101,18 @@
+ 
+     '''compute representation difference between noise feature and target feature'''
+     with tf.name_scope('loss'):
+-        loss = get_feature_loss(noise_model, image_model)
++        loss= get_feature_loss(noise_model, image_model)
++
++    with tf.name_scope('rel'):
++        rel = get_regulazation(noise_model)
+ 
+-    total_loss = loss
++    with tf.name_scope('total_loss'):
++        total_loss =  loss
+ 
+     global_steps = tf.Variable(0, trainable=False)
+-    lr = 1e-3
++    boundaries = [500, 1000]
++    values = [0.01, 0.005, 0.001]
++    lr = tf.train.piecewise_constant(global_steps, boundaries, values)
+ 
+     with tf.name_scope('update_image'):
+         opt = tf.train.AdamOptimizer(lr)
+@@ -79,45 +120,48 @@
+         update_image = opt.apply_gradients(grads)
+ 
+     tf.summary.scalar('loss', loss)
++    tf.summary.scalar('total_loss', total_loss)
++    tf.summary.scalar('rel', rel)
+     merged = tf.summary.merge_all()
+     train_writer = tf.summary.FileWriter(os.path.join(config.log_dir, 'tf_log', 'train'),
+                                          tf.get_default_graph())
+ 
+     ''' create a session '''
+-    tf.set_random_seed(12345) # ensure consistent results
++    tf.set_random_seed(12345)  # ensure consistent results
+     global_cnt = 0
+     epoch_start = 0
+     g_list = tf.global_variables()
+     saver = tf.train.Saver(var_list=g_list)
+     with tf.Session() as sess:
+-        sess.run(tf.global_variables_initializer()) # init all variables
+-        if args.continue_path: # load a model snapshot
++        sess.run(tf.global_variables_initializer())  # init all variables
++        if args.continue_path:  # load a model snapshot
+             ckpt = tf.train.get_checkpoint_state(args.continue_path)
+             saver.restore(sess, ckpt.model_checkpoint_path)
+             epoch_start = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[1])
+             global_cnt = epoch_start
+ 
+         ## training
+-        for epoch in range(epoch_start+1, config.nr_epoch+1):
++        for epoch in range(epoch_start + 1, config.nr_epoch + 1):
+             global_cnt += 1
+-            _, loss, summary =  sess.run([update_image, total_loss, merged],
+-                                        feed_dict ={ global_steps: global_cnt} )
++            _, loss, summary, lrs = sess.run([update_image, total_loss, merged, lr],
++                                             feed_dict={global_steps: global_cnt})
++            # _, loss, lrs = sess.run([update_image, total_loss, lr],
++            #                         feed_dict={global_steps: global_cnt})
+ 
+             if global_cnt % config.show_interval == 0:
+                 train_writer.add_summary(summary, global_cnt)
+                 print(
+-                    "e:{}".format(epoch),'loss: {:.5f}'.format(loss),
++                    "e:{}".format(epoch), 'loss: {:.5f}'.format(loss), 'lr:{:.4f}'.format(lrs)
+                 )
+ 
+             '''save the trained noise image every 10 epoch, check whether it resembles the target image'''
+-            if global_cnt % config.save_interval == 0 and global_cnt >0 :
+-                out_dir = os.path.dirname(os.path.realpath(__file__)) + '/./output'
++            if global_cnt % config.save_interval == 0 and global_cnt > 0:
++                out_dir = './output/'
+ 
+                 if not os.path.isdir(out_dir):
+                     os.makedirs(out_dir)
+-                out_dir = out_dir +'/{}.png'.format(global_cnt)
+-                output_img(sess, noise, save=True, out_path = out_dir)
+-
++                out_dir = out_dir + '{}.png'.format(global_cnt)
++                output_img(sess, noise, save=True, out_path=out_dir)
+ 
+             ## save model
+             if epoch % config.snapshot_interval == 0:
+@@ -127,8 +171,6 @@
+         print('Training is done, exit.')
+ 
+ 
+-
+-
+ if __name__ == "__main__":
+     try:
+         main()

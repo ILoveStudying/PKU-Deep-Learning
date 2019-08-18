@@ -1,0 +1,125 @@
+Only in homework3/q4.diff: __pycache__
+diff -- 03-adversarial-examples/attack.py homework3/q4.diff/attack.py
+21,23c21,23
+<         x_clip = tf.clip_by_value(x_noise, 0, 255) 
+<         x_round = x_clip + tf.stop_gradient(x_clip // 1 - x_clip) ##skip computing gradient wrt to rounded results(x_round) and only calculate the gradient wrt to x_clip 
+<         x_norm = (x_round - mean)/(std + 1e-7)          ## normalize the image input for the classfier
+---
+>         x_clip = tf.clip_by_value(x_noise, 0, 255)
+>         x_round = x_clip + tf.stop_gradient(x_clip // 1 - x_clip) ##对抗性的 training,其中不应通过反例生成过程发生 backprop. skip computing gradient wrt to rounded results(x_round) and only calculate the gradient wrt to x_clip
+>         x_norm = (x_round - mean)/(std + 1e-7)          ## 做一些对特征没有影响的变换，这样归一化之后仍然不会变，例如一面墙灯强和灯弱时的像素 normalize the image input for the classfier
+32c32
+<         loss = tf.losses.softmax_cross_entropy(target_one_hot, logits) * (-1)
+---
+>         loss = tf.losses.softmax_cross_entropy(target_one_hot, logits) #这里是使差值越大，当扰动多大时，基本已经可以完全误分类了？
+35c35
+<         return  acc, loss, x_round
+---
+>         return  acc, loss, x_round,x, preds
+45d44
+< 
+diff -- 03-adversarial-examples/common.py homework3/q4.diff/common.py
+7c7
+<     log_dir = './train_log'
+---
+>     log_dir = '../../train_log'
+19c19
+<     nr_epoch = 500 ### you may need to increase nr_epoch to 4000 or more for targeted adversarial attacks
+---
+>     nr_epoch = 3000 ### you may need to increase nr_epoch to 4000 or more for targeted adversarial attacks
+diff -- 03-adversarial-examples/dataset.py homework3/q4.diff/dataset.py
+10c10
+<     dataset_path = '../../cifar10-dataset/'
+---
+>     dataset_path = '../../dataset/cifar-10-batches-py/'
+46a47
+>             target=self.target_label(label)
+48c49,56
+<             yield img.astype(np.float32), np.array(label, dtype=np.int32)
+---
+>             yield img.astype(np.float32), np.array(label, dtype=np.int32), np.array(target, dtype=np.int32)
+> 
+> 
+>     def target_label(self,label):
+>         target = np.random.randint(0, 10)
+>         while (target == label):
+>             target = np.random.randint(0, 10)
+>         return target
+59c67
+<             img, label = next(gen)
+---
+>             img, label,target = next(gen)
+diff -- 03-adversarial-examples/train.py homework3/q4.diff/train.py
+19c19
+<     ds = tf.data.Dataset().from_generator(ds_gnr, output_types=(tf.float32, tf.int32),)
+---
+>     ds = tf.data.Dataset().from_generator(ds_gnr, output_types=(tf.float32, tf.int32, tf.int32), )
+34a35,37
+>     data = tf.placeholder(tf.float32, shape=(None,) + config.image_shape + (config.nr_channel,), name='data')
+>     label = tf.placeholder(tf.int32, name='label')  # placeholder for targetted label
+>     gt = tf.placeholder(tf.int32, shape=(None,), name='gt')
+36,40c39
+<     data = tf.placeholder(tf.float32, shape = (None,) + config.image_shape + (config.nr_channel, ), name = 'data')
+<     label = tf.placeholder(tf.int32, shape = (None, ), name = 'label') # placeholder for targetted label
+<     gt = tf.placeholder(tf.int32, shape = (None, ), name='gt')
+< 
+<     pre_noise = tf.Variable(tf.zeros((config.minibatch_size, config.image_shape[0], config.image_shape[1], config.nr_channel), dtype=tf.float32 ))
+---
+>     pre_noise = tf.Variable(tf.zeros((config.minibatch_size, config.image_shape[0], config.image_shape[1], config.nr_channel),dtype=tf.float32))
+43,44c42,43
+<     acc, loss, adv = attack.generate_graph(pre_noise, data, gt, label)
+<     acc_gt = attack.evaluate(data, gt) 
+---
+>     acc, loss, adv, x, logits = attack.generate_graph(pre_noise, data, gt, label)
+>     acc_gt = attack.evaluate(data, gt)
+48c47
+<         'label':label, 
+---
+>         'label': label,
+64c63
+<     tf.set_random_seed(12345) # ensure consistent results
+---
+>     tf.set_random_seed(12345)  # ensure consistent results
+68a68
+>     ta_succ=0
+74,75c74,75
+<             sess.run(tf.global_variables_initializer()) # init all variables
+<             images, labels = sess.run(train_batch_gnr)
+---
+>             sess.run(tf.global_variables_initializer())  # init all variables
+>             images, labels,target = sess.run(train_batch_gnr)
+81c81
+<                     placeholders['label']: labels,
+---
+>                     placeholders['label']: target,
+84,85c84,85
+<                 _, accuracy, loss_batch, adv_examples, summary = sess.run([train, acc, loss, adv, merged],
+<                                                                        feed_dict=feed_dict)
+---
+>                 _, accuracy, loss_batch, adv_examples,ori_image, a,summary = sess.run([train, acc, loss, adv,x, logits,merged],
+>                                                                              feed_dict=feed_dict)
+90c90
+<                         "e:{}/{}, {}".format(idx,train_set.minibatches, epoch),
+---
+>                         "e:{}/{}, {}".format(idx, train_set.minibatches, epoch),
+92a93,95
+>                         'logits: {:4f}'.format(np.max(a[0])),
+>                         'index: {}'.format(np.argmax(a[0])),
+>                         'target: {}'.format(target)
+97,99c100,101
+<             accuracy_gt = acc_gt.eval(feed_dict ={placeholders['data']:adv_examples, placeholders['gt'] :labels})
+<             succ = (idx * succ + 1- accuracy_gt)/(idx + 1)      # compute success rate of generating adversarial examples that can be misclassified
+<             noise_l2 = (idx * (noise_l2) + ((adv_examples - images))**2)/(idx + 1) # compute l2 difference between adversarial examples and origina images
+---
+>             cv2.imwrite('../../ori_image/' + '{}.png'.format(idx), ori_image.astype('uint8').reshape(32, 32, 3))
+>             cv2.imwrite('../../adv_image/' + '{}.png'.format(idx), adv_examples.astype('uint8').reshape(32, 32, 3))
+100a103,107
+>             accuracy_ta = acc_gt.eval(feed_dict={placeholders['data']: adv_examples, placeholders['gt']: target})
+>             accuracy_gt = acc_gt.eval(feed_dict={placeholders['data']: adv_examples, placeholders['gt']: labels})
+>             ta_succ = (idx * ta_succ + 1 - accuracy_ta) / (idx + 1)
+>             succ = (idx * succ + 1 - accuracy_gt) / (idx + 1)  # compute success rate of generating adversarial examples that can be misclassified
+>             noise_l2 = (idx * (noise_l2) + ((adv_examples - images)) ** 2) / (idx + 1)  # compute l2 difference between adversarial examples and origina images
+101a109
+>         print('Success rate of target attack is {}'.format(ta_succ))
+105d112
+< 

@@ -1,0 +1,54 @@
+diff -u -- 01-svhn/common.py q2.diff/common.py
+--- 01-svhn/common.py	2019-05-08 19:40:01.993576500 +0800
++++ q2.diff/common.py	2019-05-06 13:52:33.361228900 +0800
+@@ -12,7 +12,7 @@
+ 
+ class Config:
+     '''where to write all the logging information during training(includes saved models)'''
+-    log_dir = '../train_log'
++    log_dir = './train_log'
+ 
+     '''where to write model snapshots to'''
+     log_model_dir = os.path.join(log_dir, 'models')
+diff -u -- 01-svhn/train.py q2.diff/train.py
+--- 01-svhn/train.py	2019-05-08 19:15:20.106805600 +0800
++++ q2.diff/train.py	2019-05-06 16:03:03.388745200 +0800
+@@ -33,10 +33,10 @@
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument('-c', '--continue', dest='continue_path', required=False)
+-    parser.add_argument('-l', '--loss', default='softmax')
++    parser.add_argument('-l', '--loss', default='regression')
+     args = parser.parse_args()
+ 
+-    assert args.loss in ['softmax', 'abs-max', 'square-max', 'plus-one-abs-max', 'non-negative-max']
++    # assert args.loss in ['softmax', 'abs-max', 'square-max', 'plus-one-abs-max', 'non-negative-max']
+ 
+     ## load dataset
+     train_batch_gnr, train_set = get_dataset_batch(ds_name='train')
+@@ -46,7 +46,7 @@
+     network = Model()
+     placeholders, label_onehot, logits = network.build()
+ 
+-    if args.loss == 'softmax':
++    if args.loss == 'softmax'or args.loss == 'regression':
+         preds = tf.nn.softmax(logits)
+     elif args.loss == 'abs-max':
+         abs_logits = tf.abs(logits)
+@@ -67,11 +67,14 @@
+                             tf.cast(tf.argmax(label_onehot, 1), dtype=tf.int32))
+     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+     loss_reg = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+-    loss = tf.losses.softmax_cross_entropy(label_onehot, logits) + loss_reg
++    if args.loss == 'regression':
++        loss = tf.reduce_mean(tf.reduce_sum(tf.square(preds - tf.cast(label_onehot, dtype=tf.float32)), axis=1))
++    else:
++        loss = tf.losses.softmax_cross_entropy(label_onehot, logits) + loss_reg
+ 
+     ## train config
+     global_steps = tf.Variable(0, trainable=False)
+-    boundaries = [train_set.minibatchs_per_epoch*15, train_set.minibatchs_per_epoch*40]
++    boundaries = [train_set.minibatchs_per_epoch*15, train_set.minibatchs_per_epoch*30]
+     values = [0.01, 0.001, 0.0005]
+     lr = tf.train.piecewise_constant(global_steps, boundaries, values)
+     #opt = tf.train.MomentumOptimizer(lr, momentum=0.9) # set optimizer

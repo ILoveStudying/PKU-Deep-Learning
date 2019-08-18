@@ -1,0 +1,44 @@
+diff -u -- 01-svhn/common.py q4.2.diff/common.py
+--- 01-svhn/common.py	2019-05-07 17:34:13.348353700 +0800
++++ q4.2.diff/common.py	2019-05-07 23:01:30.705135800 +0800
+@@ -12,7 +12,7 @@
+ 
+ class Config:
+     '''where to write all the logging information during training(includes saved models)'''
+-    log_dir = '../config/train_log'
++    log_dir = '../train_log'
+ 
+     '''where to write model snapshots to'''
+     log_model_dir = os.path.join(log_dir, 'models')
+@@ -25,6 +25,7 @@
+     nr_class = 10
+     nr_epoch = 40
+     weight_decay = 1e-10
++    lp_reg = 2
+ 
+     show_interval = 100
+     snapshot_interval = 2
+diff -u -- 01-svhn/dataset.py q4.2.diff/dataset.py
+--- 01-svhn/dataset.py	2019-05-06 12:34:12.377774300 +0800
++++ q4.2.diff/dataset.py	2019-05-07 10:35:50.908090600 +0800
+@@ -17,7 +17,7 @@
+ 
+ class Dataset():
+     #dataset_path = '../../dataset/SVHN'
+-    dataset_path = '..'
++    dataset_path = '../'
+ 
+ 
+     def __init__(self, dataset_name):
+diff -u -- 01-svhn/model.py q4.2.diff/model.py
+--- 01-svhn/model.py	2019-03-19 13:01:10.000000000 +0800
++++ q4.2.diff/model.py	2019-05-07 10:20:46.672809300 +0800
+@@ -19,7 +19,7 @@
+         self.weight_init = tf_contrib.layers.variance_scaling_initializer(factor=1.0,
+                                 mode='FAN_IN', uniform=False)
+         self.bias_init = tf.zeros_initializer()
+-        self.reg = tf_contrib.layers.l2_regularizer(config.weight_decay)
++        self.reg = lambda w: (-1)*config.weight_decay * tf.reduce_sum(tf.pow(tf.abs(w), config.lp_reg))
+ 
+     def _conv_layer(self, name, inp, kernel_shape, stride, padding='SAME',is_training=False):
+         with tf.variable_scope(name) as scope:

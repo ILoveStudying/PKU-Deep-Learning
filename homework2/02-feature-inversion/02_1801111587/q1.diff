@@ -1,0 +1,56 @@
+diff -u baseline/common.py homework2/q1.a.diff/common.py
+--- baseline/common.py	2019-03-27 06:22:34.000000000 +0800
++++ homework2/q1.a.diff/common.py	2019-03-20 10:06:06.000000000 +0800
+@@ -21,11 +21,9 @@
+     nr_channel = 3
+     nr_epoch = 2000
+     '''save the image every 10 epoch'''
+-    save_interval = 10
++    save_interval = 50
+     '''show the training loss every 10 epoch'''
+-    show_interval = 10
+-    snapshot_interval = 2
+-
+-
++    show_interval = 100
++    snapshot_interval = 100
+ 
+ config = Config()
+diff -u baseline/custom_resnet18.py homework2/q1.a.diff/custom_resnet18.py
+--- baseline/custom_resnet18.py	2019-03-27 06:22:34.000000000 +0800
++++ homework2/q1.a.diff/custom_resnet18.py	2019-03-18 13:48:56.000000000 +0800
+@@ -6,7 +6,7 @@
+ vgg_std = [0.229, 0.224, 0.225]
+ data = None
+ dir_path = os.path.dirname(os.path.realpath(__file__))
+-weights_path = os.path.abspath(dir_path + "/../../models/resnet18.npy")
++weights_path = os.path.abspath(dir_path + "/././models/resnet18.npy")
+ 
+ 
+ class Resnet18:
+diff -u baseline/custom_vgg16_bn.py homework2/q1.a.diff/custom_vgg16_bn.py
+--- baseline/custom_vgg16_bn.py	2019-03-27 06:22:34.000000000 +0800
++++ homework2/q1.a.diff/custom_vgg16_bn.py	2019-03-18 13:26:56.000000000 +0800
+@@ -6,7 +6,7 @@
+ vgg_std = [0.229, 0.224, 0.225]
+ data = None
+ dir_path = os.path.dirname(os.path.realpath(__file__))
+-weights_path = os.path.abspath(dir_path + "/../models/vgg16_onnx.npy")
++weights_path = os.path.abspath(dir_path + "/./models/vgg16_onnx.npy")
+ 
+ 
+ class Model():
+diff -u baseline/train.py homework2/q1.a.diff/train.py
+--- baseline/train.py	2019-03-27 06:22:34.000000000 +0800
++++ homework2/q1.a.diff/train.py	2019-03-27 13:41:49.384820800 +0800
+@@ -71,7 +71,9 @@
+     total_loss = loss
+ 
+     global_steps = tf.Variable(0, trainable=False)
+-    lr = 1e-3
++    boundaries = [500, 1000]
++    values = [0.01, 0.005, 0.001]
++    lr = tf.train.piecewise_constant(global_steps, boundaries, values)
+ 
+     with tf.name_scope('update_image'):
+         opt = tf.train.AdamOptimizer(lr)

@@ -1,0 +1,88 @@
+Only in homework1/q4.all.diff: __pycache__
+diff -u 01-svhn/common.py homework1/q4.all.diff/common.py
+--- 01-svhn/common.py	2019-03-20 18:44:19.983937800 +0800
++++ homework1/q4.all.diff/common.py	2019-03-20 22:41:02.209000000 +0800
+@@ -12,7 +12,7 @@
+ 
+ class Config:
+     '''where to write all the logging information during training(includes saved models)'''
+-    log_dir = '../train_log'
++    log_dir = '../../train_log'
+ 
+     '''where to write model snapshots to'''
+     log_model_dir = os.path.join(log_dir, 'models')
+@@ -23,7 +23,7 @@
+     nr_channel = 3
+     image_shape = (32, 32)
+     nr_class = 10
+-    nr_epoch = 60
++    nr_epoch = 40
+     weight_decay = 1e-10
+ 
+     show_interval = 100
+diff -u 01-svhn/dataset.py homework1/q4.all.diff/dataset.py
+--- 01-svhn/dataset.py	2019-03-20 18:59:34.214717600 +0800
++++ homework1/q4.all.diff/dataset.py	2019-03-21 19:29:42.713992100 +0800
+@@ -15,10 +15,9 @@
+ 
+ from common import config
+ 
+-class Dataset():
+-    #dataset_path = '../../dataset/SVHN'
+-    dataset_path = '..'
+ 
++class Dataset():
++    dataset_path = '../..'
+ 
+     def __init__(self, dataset_name):
+         self.minibatch_size = config.minibatch_size
+@@ -44,7 +43,7 @@
+         datas = np.concatenate(datas_list, axis=3)
+         labels = np.concatenate(labels_list, axis=0)
+         if self.ds_name == "train":
+-            self.instances=10000
++            datas, labels = self.mix_up(datas, labels)
+         self.samples_mat = {
+             'X': datas,
+             'Y': labels,
+@@ -59,6 +58,16 @@
+     def minibatchs_per_epoch(self):
+         return self.instances // config.minibatch_size
+ 
++    def mix_up(self, data, labels):
++        for j in range(data.shape[3]):
++            if labels[j, :][0] == 10:
++                labels[j, :][0] = 0
++            weight = np.random.beta(1.2, 0.2)
++            rand = np.random.randint(0, self.instances)
++            img2 = data[:, :, :, rand]
++            data[:, :, :, j] = data[:, :, :, j] * weight + img2 * (1 - weight)
++        return data, labels
++
+     def instance_generator(self):
+         for i in range(self.instances):
+             img = self.samples_mat['X'][:, :, :, i]
+@@ -83,10 +92,9 @@
+             imggrid.append(img)
+ 
+         imggrid = np.array(imggrid).reshape((5, 5, img.shape[0], img.shape[1], img.shape[2]))
+-        imggrid = imggrid.transpose((0, 2, 1, 3, 4)).reshape((5*img.shape[0], 5*img.shape[1], 3))
++        imggrid = imggrid.transpose((0, 2, 1, 3, 4)).reshape((5 * img.shape[0], 5 * img.shape[1], 3))
+         cv2.imshow('', imggrid.astype('uint8'))
+         c = chr(cv2.waitKey(0) & 0xff)
+         if c == 'q':
+             exit()
+         imggrid = []
+-
+diff -u 01-svhn/train.py homework1/q4.all.diff/train.py
+--- 01-svhn/train.py	2019-03-19 13:01:10.000000000 +0800
++++ homework1/q4.all.diff/train.py	2019-03-20 22:41:02.208000000 +0800
+@@ -71,7 +71,7 @@
+ 
+     ## train config
+     global_steps = tf.Variable(0, trainable=False)
+-    boundaries = [train_set.minibatchs_per_epoch*15, train_set.minibatchs_per_epoch*40]
++    boundaries = [train_set.minibatchs_per_epoch*15, train_set.minibatchs_per_epoch*25]
+     values = [0.01, 0.001, 0.0005]
+     lr = tf.train.piecewise_constant(global_steps, boundaries, values)
+     #opt = tf.train.MomentumOptimizer(lr, momentum=0.9) # set optimizer

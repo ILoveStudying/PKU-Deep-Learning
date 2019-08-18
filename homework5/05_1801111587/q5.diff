@@ -1,0 +1,34 @@
+diff -u -- q5/train.py q1/train.py
+--- q5/train.py	2019-05-25 00:16:10.580952400 +0800
++++ q1/train.py	2019-05-24 11:49:05.922726300 +0800
+@@ -11,9 +11,7 @@
+ 
+ '''use 13 convolution layers to generate gram matrix'''
+ 
+-GRAM_LAYERS= ['conv1_1', 'conv2_1', 'conv3_1', 'conv4_1' , 'conv5_1']
+-# GRAM_LAYERS= ['conv1_1', 'conv1_2' ,'conv2_1', 'conv2_2']
+-# GRAM_LAYERS= ['conv4_1', 'conv4_2', 'conv4_3' , 'conv5_1', 'conv5_2', 'conv5_3']
++GRAM_LAYERS= ['conv1_1', 'conv1_2' ,'conv2_1', 'conv2_2' , 'conv3_1', 'conv3_2', 'conv3_3' , 'conv4_1', 'conv4_2', 'conv4_3' , 'conv5_1', 'conv5_2', 'conv5_3']
+ image_shape = (1, 224, 224, 3)
+ 
+ '''you need to complete this method'''
+@@ -35,9 +33,7 @@
+ 
+     diff_G = tf.reduce_sum(tf.square(Matrix_noise - Matrix_source))
+ 
+-    weight_filter = 1.0/h_filter  #M逐渐减少，即越后面权重越大
+-    # weight_filter = 1.0/n_filter #N逐渐增大，即越后面权重越小
+-
++    weight_filter = 1.0
+     # loss = weight_filter * diff_G / tf.cast(4 * (n_filter ** 2) * (h_filter * w_filter) ** 2, dtype=tf.float32)
+     loss = weight_filter * diff_G /  tf.cast(4 * (h_filter * w_filter) ** 2, dtype=tf.float32)
+     return loss
+@@ -60,7 +56,7 @@
+     noise = tf.Variable(tf.nn.sigmoid(pre_noise))
+ 
+     '''load texture image, notice that the pixel value has to be normalized to [0,1]'''
+-    image = cv2.imread('../images/stone_1.jpg')
++    image = cv2.imread('../images/red-peppers256.jpg')
+     image = cv2.resize(image, image_shape[1:3])
+     image = image.reshape(image_shape)
+     image = (image/255).astype('float32')

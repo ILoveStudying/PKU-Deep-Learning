@@ -1,0 +1,92 @@
+diff -u -- 01-svhn/common.py q3.diff/common.py
+--- 01-svhn/common.py	2019-05-07 17:34:13.348353700 +0800
++++ q3.diff/common.py	2019-05-06 22:07:37.351849200 +0800
+@@ -12,7 +12,7 @@
+ 
+ class Config:
+     '''where to write all the logging information during training(includes saved models)'''
+-    log_dir = '../config/train_log'
++    log_dir = '../train_log'
+ 
+     '''where to write model snapshots to'''
+     log_model_dir = os.path.join(log_dir, 'models')
+diff -u -- 01-svhn/dataset.py q3.diff/dataset.py
+--- 01-svhn/dataset.py	2019-05-06 12:34:12.377774300 +0800
++++ q3.diff/dataset.py	2019-05-06 22:07:37.387753200 +0800
+@@ -17,7 +17,7 @@
+ 
+ class Dataset():
+     #dataset_path = '../../dataset/SVHN'
+-    dataset_path = '..'
++    dataset_path = '../'
+ 
+ 
+     def __init__(self, dataset_name):
+diff -u -- 01-svhn/model.py q3.diff/model.py
+--- 01-svhn/model.py	2019-03-19 13:01:10.000000000 +0800
++++ q3.diff/model.py	2019-05-07 22:37:49.480045400 +0800
+@@ -34,16 +34,37 @@
+             x = tf.nn.relu(x)
+         return x
+ 
+-    def _pool_layer(self, name, inp, ksize, stride, padding='SAME', mode='MAX'):
+-        assert mode in ['MAX', 'AVG'], 'the mode of pool must be MAX or AVG'
++    def _pool_layer(self, name, inp, ksize, stride, padding='SAME', mode='MAX', p=None):
++        assert mode in ['MAX', 'AVG', 'LP'], 'the mode of pool must be MAX or AVG'
++        if p is not None:
++            assert isinstance(p, int), 'p must be integer!'
++            assert mode == 'LP'
+         if mode == 'MAX':
+             x = tf.nn.max_pool(inp, ksize=[1, ksize, ksize, 1], strides=[1, stride, stride, 1],
+                                padding=padding, name=name, data_format='NHWC')
+         elif mode == 'AVG':
+             x = tf.nn.avg_pool(inp, ksize=[1, ksize, ksize, 1], strides=[1, stride, stride, 1],
+                                padding=padding, name=name, data_format='NHWC')
++        elif mode == 'LP':
++            x = self.LP_pooling_kernelsize3(inp, stride, p)
+         return x
+ 
++    def LP_pooling_kernelsize3(self, inp, stride, pnum):
++        pip = tf.pow(inp, pnum)
++        conv_filter = tf.constant([0.05711826, 0.12475775, 0.05711826,
++                                   0.12475775, 0.27249597, 0.12475775,
++                                   0.05711826, 0.12475775, 0.05711826],shape=[3,3],dtype=tf.float32)
++        conv_filter = tf.expand_dims(conv_filter, axis=-1)  #channel
++        conv_filter = tf.expand_dims(conv_filter, axis=-1)  #卷积核个数
++        pips = tf.unstack(pip, axis=-1) #nwh + c
++        z = []
++        for p in pips:
++            p = tf.expand_dims(p, axis=-1)#con2d要求input是4维的向量
++            z.append(tf.nn.conv2d(p, conv_filter, strides=[1, stride, stride, 1], padding='SAME'))
++        res = tf.concat(z, axis=-1)
++        res = tf.pow(res, 1. / pnum)
++        return res
++
+     def _fc_layer(self, name, inp, units, dropout=0.5):
+         with tf.variable_scope(name) as scope:
+             shape = inp.get_shape().as_list()
+@@ -74,21 +95,21 @@
+         x = self._conv_layer(name='conv1', inp=data,
+                              kernel_shape=[3, 3, config.nr_channel, 16], stride=1,
+                              is_training=is_training) # Nx32x32x32
+-        x = self._pool_layer(name='pool1', inp=x, ksize=2, stride=2, mode='MAX') # Nx16x16x16
++        x = self._pool_layer(name='pool1', inp=x, ksize=2, stride=2, mode='LP',p=-1) # Nx16x16x16
+ 
+         # conv2
+         x = self._conv_layer(name='conv21', inp=x, kernel_shape=[3, 3, 16, 32],
+                              stride=1, is_training=is_training)
+         x = self._conv_layer(name='conv22', inp=x, kernel_shape=[3, 3, 32, 32],
+                              stride=1, is_training=is_training)
+-        x = self._pool_layer(name='pool2', inp=x, ksize=2, stride=2, mode='MAX') # Nx8x8x32
++        x = self._pool_layer(name='pool2', inp=x, ksize=2, stride=2, mode='LP',p=-1) # Nx8x8x32
+ 
+         # conv3
+         x = self._conv_layer(name='conv31', inp=x, kernel_shape=[3, 3, 32, 64],
+                              stride=1, is_training=is_training)
+         x = self._conv_layer(name='conv32', inp=x, kernel_shape=[3, 3, 64, 64],
+                              stride=1, is_training=is_training)
+-        x = self._pool_layer(name='pool3', inp=x, ksize=2, stride=2, mode='MAX') # Nx4x4x64
++        x = self._pool_layer(name='pool3', inp=x, ksize=2, stride=2, mode='LP',p=-1) # Nx4x4x64
+ 
+         # conv4
+         x = self._conv_layer(name='conv41', inp=x, kernel_shape=[3, 3, 64, 128],

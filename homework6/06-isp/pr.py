@@ -1,0 +1,30 @@
+import csv
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+df=pd.read_csv('./q2/q2psnr.csv')
+# axes = df.plot(label="折线图",style='k')
+# plt.plot(df['PSNRsigma=15'], linewidth=2.5, linestyle="-")
+plt.plot(df['BSDratio=2'], linewidth=2.5, linestyle="-")
+plt.plot(df['BSDratio=3'], linewidth=2.5, linestyle="-")
+plt.plot(df['BSDratio=4'], linewidth=2.5, linestyle="-")
+plt.plot(df['G100ratio=2'], linewidth=2.5, linestyle="-")
+plt.plot(df['G100ratio=3'], linewidth=2.5, linestyle="-")
+plt.plot(df['G100ratio=4'], linewidth=2.5, linestyle="-")
+plt.plot(df['T91ratio=2'], linewidth=2.5, linestyle="-")
+plt.plot(df['T91ratio=3'], linewidth=2.5, linestyle="-")
+plt.plot(df['T91ratio=4'], linewidth=2.5, linestyle="-")
+
+# ax=pd.read_csv('./q3/q3psnr.csv')
+# plt.plot(ax['linear'], linewidth=2.5, linestyle="-")
+# plt.plot(ax['sRGB'], linewidth=2.5, linestyle="-")
+plt.xlabel('Epoch')
+plt.ylabel('Average PSNR(db)')
+plt.legend()
+plt.ylim(16,32)
+plt.yticks(np.arange(16, 33, 1.0))
+plt.show()
+# print(max(df['T91ratio=2']),max(df['T91ratio=3']),max(df['T91ratio=4']))
+# print(max(df['G100ratio=2']),max(df['G100ratio=3']),max(df['G100ratio=4']))
+# print(max(df['BSDratio=2']),max(df['BSDratio=3']),max(df['BSDratio=4']))
+# print(max(ax['linear']),max(ax['sRGB']))

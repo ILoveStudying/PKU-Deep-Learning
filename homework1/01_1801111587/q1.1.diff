@@ -1,0 +1,52 @@
+diff -u -- ./01-svhn/common.py ./q1.1.diff/common.py
+--- ./01-svhn/common.py	2019-05-08 19:40:01.993576500 +0800
++++ ./q1.1.diff/common.py	2019-05-06 13:04:16.785372400 +0800
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env mdl
+ # -*- coding: utf-8 -*-
+ # =======================================
+ # File Name : common.py
+@@ -29,7 +29,6 @@
+     show_interval = 100
+     snapshot_interval = 2
+     test_interval = 1
+-
+     use_extra_data = False
+ 
+     @property
+diff -u -- ./01-svhn/train.py ./q1.1.diff/train.py
+--- ./01-svhn/train.py	2019-05-08 19:15:20.106805600 +0800
++++ ./q1.1.diff/train.py	2019-05-08 19:20:22.965859900 +0800
+@@ -33,7 +33,7 @@
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument('-c', '--continue', dest='continue_path', required=False)
+-    parser.add_argument('-l', '--loss', default='softmax')
++    parser.add_argument('-l', '--loss', default='abs-max')
+     args = parser.parse_args()
+ 
+     assert args.loss in ['softmax', 'abs-max', 'square-max', 'plus-one-abs-max', 'non-negative-max']
+@@ -46,6 +46,7 @@
+     network = Model()
+     placeholders, label_onehot, logits = network.build()
+ 
++    preds=None
+     if args.loss == 'softmax':
+         preds = tf.nn.softmax(logits)
+     elif args.loss == 'abs-max':
+@@ -67,11 +68,11 @@
+                             tf.cast(tf.argmax(label_onehot, 1), dtype=tf.int32))
+     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+     loss_reg = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+-    loss = tf.losses.softmax_cross_entropy(label_onehot, logits) + loss_reg
+-
++    # loss = tf.losses.softmax_cross_entropy(label_onehot, logits) + loss_reg
++    loss=-tf.reduce_mean(tf.reduce_sum(tf.cast(label_onehot,dtype=tf.float32)*tf.log(tf.clip_by_value(preds,1e-10,1.0)),axis=-1))+loss_reg
+     ## train config
+     global_steps = tf.Variable(0, trainable=False)
+-    boundaries = [train_set.minibatchs_per_epoch*15, train_set.minibatchs_per_epoch*40]
++    boundaries = [train_set.minibatchs_per_epoch*15, train_set.minibatchs_per_epoch*30]
+     values = [0.01, 0.001, 0.0005]
+     lr = tf.train.piecewise_constant(global_steps, boundaries, values)
+     #opt = tf.train.MomentumOptimizer(lr, momentum=0.9) # set optimizer

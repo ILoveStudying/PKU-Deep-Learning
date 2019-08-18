@@ -1,0 +1,47 @@
+diff -u -- 04-distillation/common.py q3/common.py
+--- 04-distillation/common.py	2019-05-10 14:59:56.930669300 +0800
++++ q3/common.py	2019-05-13 23:59:12.648979400 +0800
+@@ -8,8 +8,8 @@
+     log_dir = '../train_log'
+ 
+     '''where to write model snapshots to'''
+-    log_model_dir = os.path.join(log_dir, 'models')
+-    checkpoint_path = '../train_log/models'
++    log_model_dir = os.path.join(log_dir, 'models/q3_T15')
++    checkpoint_path = '../../homework1/train_log/models/h4'
+     exp_name = os.path.basename(log_dir)
+ 
+     minibatch_size = 256
+diff -u -- 04-distillation/distillation.py q3/distillation.py
+--- 04-distillation/distillation.py	2019-05-07 10:19:04.000000000 +0800
++++ q3/distillation.py	2019-05-13 23:59:12.699008400 +0800
+@@ -39,12 +39,16 @@
+                             tf.cast(tf.argmax(label_onehot, 1), dtype=tf.int32))
+         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+         loss_reg = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+-        loss = tf.losses.softmax_cross_entropy(target_label_onehot, logits/args.temperature)  + loss_reg
+ 
+         global_steps = tf.Variable(0, trainable=False)
+         boundaries = [train_set.minibatchs_per_epoch*15, train_set.minibatchs_per_epoch*40]
+         values = [0.01, 0.001, 0.0005]
++        # lamda=[args.temperature ** 2 /(5+args.temperature ** 2),args.temperature ** 2 /(2+args.temperature ** 2),args.temperature ** 2 /(0.2+args.temperature ** 2)]
++        # lamda=[0.01, 0.001, 0.0005]
+         lr = tf.train.piecewise_constant(global_steps, boundaries, values)
++        # lamda_learning=tf.train.piecewise_constant(global_steps, boundaries, lamda)
++        # loss = (1-lamda_learning)*args.temperature ** 2 * tf.losses.softmax_cross_entropy(target_label_onehot, logits / args.temperature)+ lamda_learning*tf.losses.softmax_cross_entropy(label_onehot, logits) + loss_reg
++        loss = args.temperature ** 2 * tf.losses.softmax_cross_entropy(target_label_onehot, logits / args.temperature)+ tf.losses.softmax_cross_entropy(label_onehot, logits) + loss_reg
+         opt = tf.train.AdamOptimizer(lr)
+ 
+         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS, scope='quantize')
+@@ -58,9 +62,9 @@
+         tf.summary.scalar('accuracy', accuracy)
+         tf.summary.scalar('learning_rate', lr)
+         merged = tf.summary.merge_all()
+-        train_writer = tf.summary.FileWriter(os.path.join(config.log_dir, 'tf_log', 'train'),
++        train_writer = tf.summary.FileWriter(os.path.join(config.log_dir, 'tf_log', 'train/q3_T15'),
+                                          tf.get_default_graph())
+-        test_writer = tf.summary.FileWriter(os.path.join(config.log_dir, 'tf_log', 'test'),
++        test_writer = tf.summary.FileWriter(os.path.join(config.log_dir, 'tf_log', 'test/q3_T15'),
+                                         tf.get_default_graph())
+ 
+         saver = tf.train.Saver(var_list=trainable_varlist)

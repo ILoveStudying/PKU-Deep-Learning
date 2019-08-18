@@ -1,0 +1,15 @@
+diff -u -- 06_1801111587/q3/common.py demosaicing_sRGB/common.py
+--- 06_1801111587/q3/common.py	2019-06-11 22:39:06.191981700 +0800
++++ demosaicing_sRGB/common.py	2019-06-01 05:10:06.000000000 +0800
+@@ -14,8 +14,8 @@
+ 
+     exp_name = os.path.basename(log_dir)
+ 
+-    dataset_path = ['../dataset/Flickr500']
+-    test_dataset_path = ['../dataset/McM']
++    dataset_path = ['../../dataset/Flickr500']
++    test_dataset_path = ['../../dataset/McM']
+     minibatch_size = 128
+     nr_channel = 3
+     nr_epoch = 80
+Only in demosaicing_sRGB: Readme.md
