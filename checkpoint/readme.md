@@ -1,1 +1,1 @@
-checkpoint of model
+creat checkpoint folder for your model
